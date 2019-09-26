@@ -1,0 +1,321 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+<title>Source code</title>
+<link rel="stylesheet" type="text/css" href="../../../../stylesheet.css" title="Style">
+</head>
+<body>
+<main role="main">
+<div class="sourceContainer">
+<pre><span class="sourceLineNo">001</span><a id="line.1">package andesite.node.util;</a>
+<span class="sourceLineNo">002</span><a id="line.2"></a>
+<span class="sourceLineNo">003</span><a id="line.3">import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;</a>
+<span class="sourceLineNo">004</span><a id="line.4">import com.sedmelluq.discord.lavaplayer.tools.io.MessageInput;</a>
+<span class="sourceLineNo">005</span><a id="line.5">import com.sedmelluq.discord.lavaplayer.tools.io.MessageOutput;</a>
+<span class="sourceLineNo">006</span><a id="line.6">import com.sedmelluq.discord.lavaplayer.track.AudioTrack;</a>
+<span class="sourceLineNo">007</span><a id="line.7">import io.vertx.core.json.JsonArray;</a>
+<span class="sourceLineNo">008</span><a id="line.8">import io.vertx.core.json.JsonObject;</a>
+<span class="sourceLineNo">009</span><a id="line.9">import io.vertx.ext.web.RoutingContext;</a>
+<span class="sourceLineNo">010</span><a id="line.10"></a>
+<span class="sourceLineNo">011</span><a id="line.11">import javax.annotation.CheckReturnValue;</a>
+<span class="sourceLineNo">012</span><a id="line.12">import javax.annotation.Nonnull;</a>
+<span class="sourceLineNo">013</span><a id="line.13">import javax.annotation.Nullable;</a>
+<span class="sourceLineNo">014</span><a id="line.14">import java.io.ByteArrayInputStream;</a>
+<span class="sourceLineNo">015</span><a id="line.15">import java.io.ByteArrayOutputStream;</a>
+<span class="sourceLineNo">016</span><a id="line.16">import java.io.IOException;</a>
+<span class="sourceLineNo">017</span><a id="line.17">import java.util.Base64;</a>
+<span class="sourceLineNo">018</span><a id="line.18">import java.util.function.Function;</a>
+<span class="sourceLineNo">019</span><a id="line.19"></a>
+<span class="sourceLineNo">020</span><a id="line.20">public class RequestUtils {</a>
+<span class="sourceLineNo">021</span><a id="line.21">    /**</a>
+<span class="sourceLineNo">022</span><a id="line.22">     * Attempts to find a password in a request.</a>
+<span class="sourceLineNo">023</span><a id="line.23">     *</a>
+<span class="sourceLineNo">024</span><a id="line.24">     * The password will be read from the following locations, in order, with</a>
+<span class="sourceLineNo">025</span><a id="line.25">     * the first one present being returned.</a>
+<span class="sourceLineNo">026</span><a id="line.26">     *</a>
+<span class="sourceLineNo">027</span><a id="line.27">     * &lt;ul&gt;</a>
+<span class="sourceLineNo">028</span><a id="line.28">     * &lt;li&gt;The {@code Authorization} header&lt;/li&gt;</a>
+<span class="sourceLineNo">029</span><a id="line.29">     * &lt;li&gt;A websocket protocol which starts with {@code andesite-password:}</a>
+<span class="sourceLineNo">030</span><a id="line.30">     * (the returned password will have this prefix stripped)&lt;/li&gt;</a>
+<span class="sourceLineNo">031</span><a id="line.31">     * &lt;li&gt;The {@code password} query param&lt;/li&gt;</a>
+<span class="sourceLineNo">032</span><a id="line.32">     * &lt;/ul&gt;</a>
+<span class="sourceLineNo">033</span><a id="line.33">     *</a>
+<span class="sourceLineNo">034</span><a id="line.34">     * If the websocket protocol is matched, it's value will be inserted into the</a>
+<span class="sourceLineNo">035</span><a id="line.35">     * {@code Sec-WebSocket-Protocol} header of the response.</a>
+<span class="sourceLineNo">036</span><a id="line.36">     *</a>
+<span class="sourceLineNo">037</span><a id="line.37">     * @param context Context where the password should be located.</a>
+<span class="sourceLineNo">038</span><a id="line.38">     *</a>
+<span class="sourceLineNo">039</span><a id="line.39">     * @return The password located, or null if nothing was found.</a>
+<span class="sourceLineNo">040</span><a id="line.40">     */</a>
+<span class="sourceLineNo">041</span><a id="line.41">    @Nullable</a>
+<span class="sourceLineNo">042</span><a id="line.42">    @CheckReturnValue</a>
+<span class="sourceLineNo">043</span><a id="line.43">    public static String findPassword(@Nonnull RoutingContext context) {</a>
+<span class="sourceLineNo">044</span><a id="line.44">        var authHeader = context.request().getHeader("Authorization");</a>
+<span class="sourceLineNo">045</span><a id="line.45">        if(authHeader != null) {</a>
+<span class="sourceLineNo">046</span><a id="line.46">            return authHeader;</a>
+<span class="sourceLineNo">047</span><a id="line.47">        }</a>
+<span class="sourceLineNo">048</span><a id="line.48">        </a>
+<span class="sourceLineNo">049</span><a id="line.49">        //allow browser access</a>
+<span class="sourceLineNo">050</span><a id="line.50">        //the browser websocket api doesn't support custom headers,</a>
+<span class="sourceLineNo">051</span><a id="line.51">        //so this hack is needed.</a>
+<span class="sourceLineNo">052</span><a id="line.52">        //browsers can use new WebSocket(url, "andesite-password:" + password)</a>
+<span class="sourceLineNo">053</span><a id="line.53">        var wsHeader = context.request().getHeader("Sec-WebSocket-Protocol");</a>
+<span class="sourceLineNo">054</span><a id="line.54">        if(wsHeader != null) {</a>
+<span class="sourceLineNo">055</span><a id="line.55">            var parts = wsHeader.split(",");</a>
+<span class="sourceLineNo">056</span><a id="line.56">            for(var part : parts) {</a>
+<span class="sourceLineNo">057</span><a id="line.57">                if(part.startsWith("andesite-password:")) {</a>
+<span class="sourceLineNo">058</span><a id="line.58">                    context.response().putHeader("Sec-WebSocket-Protocol", part);</a>
+<span class="sourceLineNo">059</span><a id="line.59">                    return part.substring("andesite-password:".length());</a>
+<span class="sourceLineNo">060</span><a id="line.60">                }</a>
+<span class="sourceLineNo">061</span><a id="line.61">            }</a>
+<span class="sourceLineNo">062</span><a id="line.62">        }</a>
+<span class="sourceLineNo">063</span><a id="line.63">        </a>
+<span class="sourceLineNo">064</span><a id="line.64">        var query = context.queryParam("password");</a>
+<span class="sourceLineNo">065</span><a id="line.65">        </a>
+<span class="sourceLineNo">066</span><a id="line.66">        return query.isEmpty() ? null : query.get(0);</a>
+<span class="sourceLineNo">067</span><a id="line.67">    }</a>
+<span class="sourceLineNo">068</span><a id="line.68">    </a>
+<span class="sourceLineNo">069</span><a id="line.69">    /**</a>
+<span class="sourceLineNo">070</span><a id="line.70">     * Decodes an audio track from it's base64 representation.</a>
+<span class="sourceLineNo">071</span><a id="line.71">     *</a>
+<span class="sourceLineNo">072</span><a id="line.72">     * @param playerManager Player manager used for decoding (must have the source manager enabled).</a>
+<span class="sourceLineNo">073</span><a id="line.73">     * @param base64        Base64 encoded track.</a>
+<span class="sourceLineNo">074</span><a id="line.74">     *</a>
+<span class="sourceLineNo">075</span><a id="line.75">     * @return The decoded track.</a>
+<span class="sourceLineNo">076</span><a id="line.76">     */</a>
+<span class="sourceLineNo">077</span><a id="line.77">    @Nullable</a>
+<span class="sourceLineNo">078</span><a id="line.78">    @CheckReturnValue</a>
+<span class="sourceLineNo">079</span><a id="line.79">    public static AudioTrack decodeTrack(@Nonnull AudioPlayerManager playerManager, @Nonnull String base64) {</a>
+<span class="sourceLineNo">080</span><a id="line.80">        try {</a>
+<span class="sourceLineNo">081</span><a id="line.81">            var v = playerManager.decodeTrack(new MessageInput(new ByteArrayInputStream(</a>
+<span class="sourceLineNo">082</span><a id="line.82">                Base64.getDecoder().decode(base64)</a>
+<span class="sourceLineNo">083</span><a id="line.83">            )));</a>
+<span class="sourceLineNo">084</span><a id="line.84">            return v == null ? null : v.decodedTrack;</a>
+<span class="sourceLineNo">085</span><a id="line.85">        } catch(IOException e) {</a>
+<span class="sourceLineNo">086</span><a id="line.86">            throw new AssertionError(e);</a>
+<span class="sourceLineNo">087</span><a id="line.87">        }</a>
+<span class="sourceLineNo">088</span><a id="line.88">    }</a>
+<span class="sourceLineNo">089</span><a id="line.89">    </a>
+<span class="sourceLineNo">090</span><a id="line.90">    /**</a>
+<span class="sourceLineNo">091</span><a id="line.91">     * Encodes the provided track to base64.</a>
+<span class="sourceLineNo">092</span><a id="line.92">     *</a>
+<span class="sourceLineNo">093</span><a id="line.93">     * @param playerManager Player manager used for encoding (must have the source manager enabled).</a>
+<span class="sourceLineNo">094</span><a id="line.94">     * @param track         Track to encode.</a>
+<span class="sourceLineNo">095</span><a id="line.95">     *</a>
+<span class="sourceLineNo">096</span><a id="line.96">     * @return Base64 encoded track.</a>
+<span class="sourceLineNo">097</span><a id="line.97">     */</a>
+<span class="sourceLineNo">098</span><a id="line.98">    @Nonnull</a>
+<span class="sourceLineNo">099</span><a id="line.99">    @CheckReturnValue</a>
+<span class="sourceLineNo">100</span><a id="line.100">    public static String trackString(@Nonnull AudioPlayerManager playerManager, @Nonnull AudioTrack track) {</a>
+<span class="sourceLineNo">101</span><a id="line.101">        var baos = new ByteArrayOutputStream();</a>
+<span class="sourceLineNo">102</span><a id="line.102">        try {</a>
+<span class="sourceLineNo">103</span><a id="line.103">            playerManager.encodeTrack(new MessageOutput(baos), track);</a>
+<span class="sourceLineNo">104</span><a id="line.104">        } catch(IOException e) {</a>
+<span class="sourceLineNo">105</span><a id="line.105">            throw new AssertionError(e);</a>
+<span class="sourceLineNo">106</span><a id="line.106">        }</a>
+<span class="sourceLineNo">107</span><a id="line.107">        return Base64.getEncoder().encodeToString(baos.toByteArray());</a>
+<span class="sourceLineNo">108</span><a id="line.108">    }</a>
+<span class="sourceLineNo">109</span><a id="line.109">    </a>
+<span class="sourceLineNo">110</span><a id="line.110">    /**</a>
+<span class="sourceLineNo">111</span><a id="line.111">     * Encodes a track into a json object, useful for sending to clients.</a>
+<span class="sourceLineNo">112</span><a id="line.112">     *</a>
+<span class="sourceLineNo">113</span><a id="line.113">     * @param playerManager Player manager used to encode the track.</a>
+<span class="sourceLineNo">114</span><a id="line.114">     * @param track         Track to encode.</a>
+<span class="sourceLineNo">115</span><a id="line.115">     *</a>
+<span class="sourceLineNo">116</span><a id="line.116">     * @return A json object containing information about the track.</a>
+<span class="sourceLineNo">117</span><a id="line.117">     */</a>
+<span class="sourceLineNo">118</span><a id="line.118">    @Nonnull</a>
+<span class="sourceLineNo">119</span><a id="line.119">    @CheckReturnValue</a>
+<span class="sourceLineNo">120</span><a id="line.120">    public static JsonObject encodeTrack(@Nonnull AudioPlayerManager playerManager, @Nonnull AudioTrack track) {</a>
+<span class="sourceLineNo">121</span><a id="line.121">        var info = track.getInfo();</a>
+<span class="sourceLineNo">122</span><a id="line.122">        return new JsonObject()</a>
+<span class="sourceLineNo">123</span><a id="line.123">            .put("track", trackString(playerManager, track))</a>
+<span class="sourceLineNo">124</span><a id="line.124">            .put("info", new JsonObject()</a>
+<span class="sourceLineNo">125</span><a id="line.125">                .put("class", track.getClass().getName())</a>
+<span class="sourceLineNo">126</span><a id="line.126">                .put("title", info.title)</a>
+<span class="sourceLineNo">127</span><a id="line.127">                .put("author", info.author)</a>
+<span class="sourceLineNo">128</span><a id="line.128">                .put("length", info.length)</a>
+<span class="sourceLineNo">129</span><a id="line.129">                .put("identifier", info.identifier)</a>
+<span class="sourceLineNo">130</span><a id="line.130">                .put("uri", info.uri)</a>
+<span class="sourceLineNo">131</span><a id="line.131">                .put("isStream", info.isStream)</a>
+<span class="sourceLineNo">132</span><a id="line.132">                .put("isSeekable", track.isSeekable())</a>
+<span class="sourceLineNo">133</span><a id="line.133">                .put("position", track.getPosition())</a>
+<span class="sourceLineNo">134</span><a id="line.134">            );</a>
+<span class="sourceLineNo">135</span><a id="line.135">    }</a>
+<span class="sourceLineNo">136</span><a id="line.136">    </a>
+<span class="sourceLineNo">137</span><a id="line.137">    /**</a>
+<span class="sourceLineNo">138</span><a id="line.138">     * Encodes the {@link RoutingContext#failure() failure} of the context.</a>
+<span class="sourceLineNo">139</span><a id="line.139">     * Equivalent to {@code encodeThrowable(context, context.failure())}</a>
+<span class="sourceLineNo">140</span><a id="line.140">     *</a>
+<span class="sourceLineNo">141</span><a id="line.141">     * @param context Context of the request.</a>
+<span class="sourceLineNo">142</span><a id="line.142">     *</a>
+<span class="sourceLineNo">143</span><a id="line.143">     * @return An encoded version of the exception.</a>
+<span class="sourceLineNo">144</span><a id="line.144">     *</a>
+<span class="sourceLineNo">145</span><a id="line.145">     * @see #encodeThrowable(RoutingContext, Throwable)</a>
+<span class="sourceLineNo">146</span><a id="line.146">     */</a>
+<span class="sourceLineNo">147</span><a id="line.147">    @Nonnull</a>
+<span class="sourceLineNo">148</span><a id="line.148">    @CheckReturnValue</a>
+<span class="sourceLineNo">149</span><a id="line.149">    public static JsonObject encodeFailure(@Nonnull RoutingContext context) {</a>
+<span class="sourceLineNo">150</span><a id="line.150">        return encodeThrowable(context, context.failure());</a>
+<span class="sourceLineNo">151</span><a id="line.151">    }</a>
+<span class="sourceLineNo">152</span><a id="line.152">    </a>
+<span class="sourceLineNo">153</span><a id="line.153">    /**</a>
+<span class="sourceLineNo">154</span><a id="line.154">     * Encodes the provided throwable, based on the context for deciding whether</a>
+<span class="sourceLineNo">155</span><a id="line.155">     * or not to use a shorter version with less details (omit stacktraces).</a>
+<span class="sourceLineNo">156</span><a id="line.156">     *</a>
+<span class="sourceLineNo">157</span><a id="line.157">     * @param context   Context for the request.</a>
+<span class="sourceLineNo">158</span><a id="line.158">     * @param throwable Error to encode.</a>
+<span class="sourceLineNo">159</span><a id="line.159">     *</a>
+<span class="sourceLineNo">160</span><a id="line.160">     * @return An encoded version of the exception.</a>
+<span class="sourceLineNo">161</span><a id="line.161">     */</a>
+<span class="sourceLineNo">162</span><a id="line.162">    @Nonnull</a>
+<span class="sourceLineNo">163</span><a id="line.163">    @CheckReturnValue</a>
+<span class="sourceLineNo">164</span><a id="line.164">    public static JsonObject encodeThrowable(@Nonnull RoutingContext context, @Nonnull Throwable throwable) {</a>
+<span class="sourceLineNo">165</span><a id="line.165">        return useShortMessage(context) ?</a>
+<span class="sourceLineNo">166</span><a id="line.166">            RequestUtils.encodeThrowableShort(throwable) :</a>
+<span class="sourceLineNo">167</span><a id="line.167">            RequestUtils.encodeThrowableDetailed(throwable);</a>
+<span class="sourceLineNo">168</span><a id="line.168">    }</a>
+<span class="sourceLineNo">169</span><a id="line.169">    </a>
+<span class="sourceLineNo">170</span><a id="line.170">    private static boolean useShortMessage(@Nonnull RoutingContext context) {</a>
+<span class="sourceLineNo">171</span><a id="line.171">        return context.request().getHeader("Andesite-Short-Errors") != null ||</a>
+<span class="sourceLineNo">172</span><a id="line.172">            context.queryParams().contains("shortErrors");</a>
+<span class="sourceLineNo">173</span><a id="line.173">    }</a>
+<span class="sourceLineNo">174</span><a id="line.174">    </a>
+<span class="sourceLineNo">175</span><a id="line.175">    /**</a>
+<span class="sourceLineNo">176</span><a id="line.176">     * Encodes a throwable with minimal details (omits stacktraces).</a>
+<span class="sourceLineNo">177</span><a id="line.177">     *</a>
+<span class="sourceLineNo">178</span><a id="line.178">     * @param throwable Error to encode.</a>
+<span class="sourceLineNo">179</span><a id="line.179">     *</a>
+<span class="sourceLineNo">180</span><a id="line.180">     * @return An encoded version of the exception.</a>
+<span class="sourceLineNo">181</span><a id="line.181">     */</a>
+<span class="sourceLineNo">182</span><a id="line.182">    @Nonnull</a>
+<span class="sourceLineNo">183</span><a id="line.183">    @CheckReturnValue</a>
+<span class="sourceLineNo">184</span><a id="line.184">    public static JsonObject encodeThrowableShort(@Nonnull Throwable throwable) {</a>
+<span class="sourceLineNo">185</span><a id="line.185">        var json = new JsonObject()</a>
+<span class="sourceLineNo">186</span><a id="line.186">            .put("class", throwable.getClass().getName())</a>
+<span class="sourceLineNo">187</span><a id="line.187">            .put("message", throwable.getMessage())</a>
+<span class="sourceLineNo">188</span><a id="line.188">            .put("suppressed", encodeArray(throwable.getSuppressed(), RequestUtils::encodeThrowableShort));</a>
+<span class="sourceLineNo">189</span><a id="line.189">        var cause = throwable.getCause();</a>
+<span class="sourceLineNo">190</span><a id="line.190">        if(cause != null) {</a>
+<span class="sourceLineNo">191</span><a id="line.191">            json.put("cause", encodeThrowableShort(cause));</a>
+<span class="sourceLineNo">192</span><a id="line.192">        } else {</a>
+<span class="sourceLineNo">193</span><a id="line.193">            json.putNull("cause");</a>
+<span class="sourceLineNo">194</span><a id="line.194">        }</a>
+<span class="sourceLineNo">195</span><a id="line.195">        return json;</a>
+<span class="sourceLineNo">196</span><a id="line.196">    }</a>
+<span class="sourceLineNo">197</span><a id="line.197">    </a>
+<span class="sourceLineNo">198</span><a id="line.198">    /**</a>
+<span class="sourceLineNo">199</span><a id="line.199">     * Encodes a throwable with as many details as possible. The resulting object may</a>
+<span class="sourceLineNo">200</span><a id="line.200">     * be very large.</a>
+<span class="sourceLineNo">201</span><a id="line.201">     *</a>
+<span class="sourceLineNo">202</span><a id="line.202">     * @param throwable Error to encode.</a>
+<span class="sourceLineNo">203</span><a id="line.203">     *</a>
+<span class="sourceLineNo">204</span><a id="line.204">     * @return An encoded version of the exception.</a>
+<span class="sourceLineNo">205</span><a id="line.205">     */</a>
+<span class="sourceLineNo">206</span><a id="line.206">    @Nonnull</a>
+<span class="sourceLineNo">207</span><a id="line.207">    @CheckReturnValue</a>
+<span class="sourceLineNo">208</span><a id="line.208">    public static JsonObject encodeThrowableDetailed(@Nonnull Throwable throwable) {</a>
+<span class="sourceLineNo">209</span><a id="line.209">        var json = new JsonObject()</a>
+<span class="sourceLineNo">210</span><a id="line.210">            .put("class", throwable.getClass().getName())</a>
+<span class="sourceLineNo">211</span><a id="line.211">            .put("message", throwable.getMessage())</a>
+<span class="sourceLineNo">212</span><a id="line.212">            .put("suppressed", encodeArray(throwable.getSuppressed(), RequestUtils::encodeThrowableDetailed))</a>
+<span class="sourceLineNo">213</span><a id="line.213">            .put("stack", encodeArray(throwable.getStackTrace(), RequestUtils::encodeStackFrame));</a>
+<span class="sourceLineNo">214</span><a id="line.214">        var cause = throwable.getCause();</a>
+<span class="sourceLineNo">215</span><a id="line.215">        if(cause != null) {</a>
+<span class="sourceLineNo">216</span><a id="line.216">            json.put("cause", encodeThrowableDetailed(cause));</a>
+<span class="sourceLineNo">217</span><a id="line.217">        } else {</a>
+<span class="sourceLineNo">218</span><a id="line.218">            json.putNull("cause");</a>
+<span class="sourceLineNo">219</span><a id="line.219">        }</a>
+<span class="sourceLineNo">220</span><a id="line.220">        return json;</a>
+<span class="sourceLineNo">221</span><a id="line.221">    }</a>
+<span class="sourceLineNo">222</span><a id="line.222">    </a>
+<span class="sourceLineNo">223</span><a id="line.223">    @Nonnull</a>
+<span class="sourceLineNo">224</span><a id="line.224">    @CheckReturnValue</a>
+<span class="sourceLineNo">225</span><a id="line.225">    private static JsonObject encodeStackFrame(@Nonnull StackTraceElement element) {</a>
+<span class="sourceLineNo">226</span><a id="line.226">        return new JsonObject()</a>
+<span class="sourceLineNo">227</span><a id="line.227">            .put("classLoader", element.getClassLoaderName())</a>
+<span class="sourceLineNo">228</span><a id="line.228">            .put("moduleName", element.getModuleName())</a>
+<span class="sourceLineNo">229</span><a id="line.229">            .put("moduleVersion", element.getModuleVersion())</a>
+<span class="sourceLineNo">230</span><a id="line.230">            .put("className", element.getClassName())</a>
+<span class="sourceLineNo">231</span><a id="line.231">            .put("methodName", element.getMethodName())</a>
+<span class="sourceLineNo">232</span><a id="line.232">            .put("fileName", element.getFileName())</a>
+<span class="sourceLineNo">233</span><a id="line.233">            .put("lineNumber", element.getLineNumber() &lt; 0 ? null : element.getLineNumber())</a>
+<span class="sourceLineNo">234</span><a id="line.234">            .put("pretty", element.toString());</a>
+<span class="sourceLineNo">235</span><a id="line.235">    }</a>
+<span class="sourceLineNo">236</span><a id="line.236">    </a>
+<span class="sourceLineNo">237</span><a id="line.237">    @Nonnull</a>
+<span class="sourceLineNo">238</span><a id="line.238">    @CheckReturnValue</a>
+<span class="sourceLineNo">239</span><a id="line.239">    private static &lt;T&gt; JsonArray encodeArray(@Nonnull T[] array,</a>
+<span class="sourceLineNo">240</span><a id="line.240">                                             @Nonnull Function&lt;T, JsonObject&gt; serializeFunction) {</a>
+<span class="sourceLineNo">241</span><a id="line.241">        var json = new JsonArray();</a>
+<span class="sourceLineNo">242</span><a id="line.242">        for(var t : array) {</a>
+<span class="sourceLineNo">243</span><a id="line.243">            json.add(serializeFunction.apply(t));</a>
+<span class="sourceLineNo">244</span><a id="line.244">        }</a>
+<span class="sourceLineNo">245</span><a id="line.245">        return json;</a>
+<span class="sourceLineNo">246</span><a id="line.246">    }</a>
+<span class="sourceLineNo">247</span><a id="line.247">}</a>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</pre>
+</div>
+</main>
+</body>
+</html>
