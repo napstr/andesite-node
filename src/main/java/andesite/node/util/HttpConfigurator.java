@@ -3,11 +3,14 @@ package andesite.node.util;
 import com.sedmelluq.discord.lavaplayer.tools.io.HttpConfigurable;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigValueType;
+import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.impl.client.BasicCookieStore;
 import org.apache.http.impl.cookie.BasicClientCookie;
+import org.apache.http.message.BasicHeader;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
 
 public class HttpConfigurator {
     public static void configure(@Nonnull Config config, @Nonnull HttpConfigurable httpConfigurable) {
@@ -17,6 +20,18 @@ public class HttpConfigurator {
             }
             if(config.hasPath("user-agent")) {
                 builder.setUserAgent(config.getString("user-agent"));
+            }
+            if(config.hasPath("headers")) {
+                var headers = new ArrayList<Header>();
+                config.getConfig("headers").entrySet().forEach(h -> {
+                    var v = h.getValue();
+                    if(v.valueType() != ConfigValueType.STRING) {
+                        throw new IllegalArgumentException("Invalid header " + h.getKey() + ": expected " +
+                                "value to be a string, got " + v.valueType().name().toLowerCase());
+                    }
+                    headers.add(new BasicHeader(h.getKey(), (String) v.unwrapped()));
+                });
+                builder.setDefaultHeaders(headers);
             }
             if(config.hasPath("cookies")) {
                 var store = new BasicCookieStore();

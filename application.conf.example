@@ -60,9 +60,16 @@ andesite {
             some_attribute = some_value
           }
         }]
+        headers = {
+          x-sent-by = my-cool-bot
+        }
       },
       youtube = {
         proxy = "http://myproxy.com:1234"
+        headers = {
+          x-sent-by = my-cool-bot
+          x-youtube-stuff = pls work
+        }
       }
     }
   }
