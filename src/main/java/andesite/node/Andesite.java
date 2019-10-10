@@ -11,6 +11,7 @@ import andesite.node.send.AudioHandler;
 import andesite.node.send.MagmaHandler;
 import andesite.node.util.ConfigUtil;
 import andesite.node.util.FilterUtil;
+import andesite.node.util.HttpConfigurator;
 import andesite.node.util.Init;
 import andesite.node.util.LazyInit;
 import com.github.natanbc.nativeloader.NativeLibLoader;
@@ -26,6 +27,7 @@ import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudAudioSourceM
 import com.sedmelluq.discord.lavaplayer.source.twitch.TwitchStreamAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.vimeo.VimeoAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.youtube.YoutubeAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.tools.io.HttpConfigurable;
 import com.sedmelluq.discord.lavaplayer.track.playback.NonAllocatingAudioFrameBuffer;
 import com.typesafe.config.Config;
 import io.vertx.core.Vertx;
@@ -64,6 +66,15 @@ public class Andesite implements NodeState {
             "youtube", YoutubeAudioSourceManager::new
     );
     private static final Set<String> DISABLED_BY_DEFAULT = Set.of("http", "local");
+    private static final Map<String, Class<? extends AudioSourceManager>> HTTP_CONFIGURABLE = Map.of(
+            "bandcamp", BandcampAudioSourceManager.class,
+            "beam", BeamAudioSourceManager.class,
+            "http", HttpAudioSourceManager.class,
+            "soundcloud", SoundCloudAudioSourceManager.class,
+            "twitch", TwitchStreamAudioSourceManager.class,
+            "vimeo", VimeoAudioSourceManager.class,
+            "youtube", YoutubeAudioSourceManager.class
+    );
     
     private final PluginManager pluginManager = new PluginManager(this);
     private final AtomicLong nextBufferId = new AtomicLong();
@@ -112,6 +123,13 @@ public class Andesite implements NodeState {
         
         configureYt(playerManager, config);
         configureYt(pcmPlayerManager, config);
+    
+        HTTP_CONFIGURABLE.forEach((name, klass) -> {
+            var httpConfig = config.getConfig("lavaplayer.http");
+            var sourceHttpConfig = httpConfig.getConfig(name).withFallback(httpConfig.getConfig("default"));
+            configureHttp(playerManager, klass, sourceHttpConfig);
+            configureHttp(pcmPlayerManager, klass, sourceHttpConfig);
+        });
         
         log.info("Enabled default sources: {}", enabledSources);
         //we need to set the cleanup to basically never run so mixer players aren't destroyed without need.
@@ -280,6 +298,15 @@ public class Andesite implements NodeState {
         }
         yt.setPlaylistPageCount(config.getInt("lavaplayer.youtube.max-playlist-page-count"));
         yt.setMixLoaderMaximumPoolSize(config.getInt("lavaplayer.youtube.mix-loader-max-pool-size"));
+    }
+    
+    private static void configureHttp(@Nonnull AudioPlayerManager manager,
+                                      @Nonnull Class<? extends AudioSourceManager> klass, @Nonnull Config config) {
+        var source = manager.source(klass);
+        if(source == null) {
+            return;
+        }
+        HttpConfigurator.configure(config, (HttpConfigurable) source);
     }
     
     public static void main(String[] args) throws IOException {

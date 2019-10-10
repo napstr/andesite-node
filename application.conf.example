@@ -44,6 +44,27 @@ andesite {
       max-playlist-page-count = 6
       mix-loader-max-pool-size = 10
     }
+
+    http {
+      default = {
+        user-agent = my bot,
+        cookies = [{
+          name = some name,
+          value = MyCoolCookie,
+          domain = github.com,
+          path = /natanbc/andesite,
+          secure = true,
+          comment = this is my cookie's comment,
+          version = 1,
+          attributes = {
+            some_attribute = some_value
+          }
+        }]
+      },
+      youtube = {
+        proxy = "http://myproxy.com:1234"
+      }
+    }
   }
 
   source {
