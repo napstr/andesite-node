@@ -47,6 +47,7 @@ andesite {
 
     http {
       default = {
+        address = 127.0.0.1
         user-agent = my bot,
         cookies = [{
           name = some name,

@@ -36,8 +36,10 @@ An example config can be found [here](https://github.com/natanbc/andesite-node/b
 | sentry.log-level | string | lowest level to send to sentry | WARN |
 | lavaplayer.frame-buffer-duration | integer | duration of the frame buffer, in milliseconds. changes in filters/volume take at least this time to start applying | 5000 |
 | lavaplayer.non-allocating | boolean | whether or not to use the non allocating frame buffer | true |
-| lavaplayer.youtube.max-playlist-page-count | maximum number of pages loaded from one playlist. There are 100 tracks per page. | 6 |
-| lavaplayer.youtube.mix-loader-max-pool-size | maximum number of threads used by the mix loader pool | 10 |
+| lavaplayer.youtube.max-playlist-page-count | integer | maximum number of pages loaded from one playlist. There are 100 tracks per page. | 6 |
+| lavaplayer.youtube.mix-loader-max-pool-size | integer | maximum number of threads used by the mix loader pool | 10 |
+| lavaplayer.http.default | [HTTP Configuration](#http-configuration) | default http config for all sources | see defaults for the type |
+| lavaplayer.http.<source> | [HTTP Configuration](#http-configuration) | overrides of the http config for a specific source. Unset values are picked from lavaplayer.http.default | see above |
 | source.bandcamp | boolean | whether or not to enable playing and resolving tracks from bandcamp | true |
 | source.beam | boolean | whether or not to enable playing and resolving tracks from beam | true |
 | source.http | boolean | whether or not to enable playing and resolving tracks from http urls | **false** |
@@ -49,6 +51,29 @@ An example config can be found [here](https://github.com/natanbc/andesite-node/b
 | lavalink.ws-path | string | route to run the lavalink websocket on. | / |
 | magma.send-system.type* | string | type of send system to use. Valid options are `nio`, `jda` and `nas` | `nas` on supported environments, `nio` otherwise |
 | magma.send-system.nas-buffer | integer | buffer duration, in milliseconds, to keep in native code. Ignored if type isn't `nas` | 400 |
+
+## HTTP configuration
+
+| key | type | description | default |
+|-----|------|-------------|---------|
+| address | string | local address to use | null |
+| user-agent | string | user agent to use | null |
+| cookies | [cookie](#cookie)[] | cookies to set | null |
+| proxy | string | proxy to use | null |
+| headers | map | headers to use | {} |
+
+### Cookie
+
+| key | type | description | default |
+|-----|------|-------------|---------|
+| name | string | cookie name | - |
+| value | string | cookie value | - |
+| domain | string | cookie domain | null |
+| path | string | cookie path | null |
+| secure | boolean | https only | false |
+| comment | string | cookie comment | null |
+| version | integer | cookie version | 0 |
+| attributes | map | cookie attributes | {} |
 
 \* When running on architectures not supported by [jda-nas](https://github.com/sedmelluq/jda-nas), such as
 ARM or Darwin devices, you must use either `jda` or `nio` for the send system. For production, nio is preferred

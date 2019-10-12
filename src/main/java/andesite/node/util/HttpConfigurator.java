@@ -5,15 +5,29 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigValueType;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.BasicCookieStore;
 import org.apache.http.impl.cookie.BasicClientCookie;
 import org.apache.http.message.BasicHeader;
 
 import javax.annotation.Nonnull;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 
 public class HttpConfigurator {
     public static void configure(@Nonnull Config config, @Nonnull HttpConfigurable httpConfigurable) {
+        httpConfigurable.configureRequests(r -> {
+            var b = RequestConfig.copy(r);
+            if(config.hasPath("address")) {
+                try {
+                    b.setLocalAddress(InetAddress.getByName(config.getString("address")));
+                } catch(UnknownHostException e) {
+                    throw new IllegalArgumentException("Unable to find host " + config.getStringList("address"), e);
+                }
+            }
+            return b.build();
+        });
         httpConfigurable.configureBuilder(builder -> {
             if(config.hasPath("proxy")) {
                 builder.setProxy(HttpHost.create(config.getString("proxy")));
